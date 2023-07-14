@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<title>Labeling Tool</title>
+	<style type="text/css">
+		body {
+			background-color: #87CEFA;
+		}
+	</style>
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
+
+	<style>
+		body {
+			background-color: #87CEFA;
+			font-family: Arial, sans-serif;
+			margin: 0;
+			padding: 20px;
+			/* display: flex; */
+			/* align-items: flex-start; */
+		}
+
+		.bot-header {
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+		}
+
+		.container {
+			display: flex;
+			flex: 1;
+			flex-direction: row;
+		}
+
+		.right {
+			flex: 1;
+			display: flex;
+			justify-content: center;
+			align-items: center;
+		}
+
+
+
+		form {
+			margin-top: 20px;
+		}
+
+		#submit {
+			background-color: #4CAF50;
+			color: white;
+			border: none;
+			padding: 10px 20px;
+			text-align: center;
+			text-decoration: none;
+			display: inline-block;
+			font-size: 16px;
+			border-radius: 4px;
+			cursor: pointer;
+		}
+
+		#save {
+			background-color: #4CAF50;
+			color: white;
+			border: none;
+			padding: 10px 20px;
+			text-align: center;
+			text-decoration: none;
+			display: inline-block;
+			font-size: 16px;
+			border-radius: 4px;
+			cursor: pointer;
+		}
+
+		#myCanvas {
+			background-color: #ccc;
+			background-image: url({{image0}});
+			background-size: 100% 100%;
+		}
+
+		#scrollview {
+			width: 600px;
+			height: 400px;
+			overflow: auto;
+			border: 3px solid #ccc;
+			background-color: white;
+			margin-top: 20px;
+			padding: 10px;
+		}
+
+		#content {
+			list-style-type: none;
+			padding: 0;
+			color: black;
+			margin: 0;
+		}
+
+		#content li {
+			padding: 5px;
+			margin: 5px;
+			background-color: #f5f5f5;
+			border-radius: 10px;
+		}
+	</style>
+</head>
+
+<body>
+	<div class="header">
+		<h1 style="text-align: center">Labeling Tool</h1>
+		<hr />
+		<div class="bot-header">
+			<div class="left-header">
+				<form method="POST" action="/">
+					<input type="hidden" id="myList" name="myList">
+					<button type="submit" id="submit">New Files</button>
+				</form>
+			</div>
+			<div class="right-header">
+				<button id="save">Save txt</button>
+			</div>
+
+		</div>
+	</div>
+
+	<div class="container">
+		<div class="left">
+			<div class="top-container">
+				<button id="prevImage">Previous Image</button>
+				<button id="nextImage">Next Image</button>
+			</div>
+			<canvas id="myCanvas" width={{width_canvas}} height={{height_canvas}}></canvas>
+		</div>
+
+		<div class="right">
+
+			<div id="scrollview">
+				<ul id="content">
+					<!-- Dữ liệu sẽ được điền vào đây -->
+				</ul>
+			</div>
+		</div>
+
+	</div>
+
+	<script>
+		var image_dir = {{ image_path | tojson}};
+		var width_canvas = {{ width_canvas }};
+		var height_canvas = {{ height_canvas }};
+		var index = 0;	//Index cua image (1 PDF co nhieu image)
+		var addDraw = false;
+		var canvas = document.getElementById("myCanvas");
+		var nextImage = document.getElementById('nextImage');
+		var prevImage = document.getElementById('prevImage');
+		var submit = document.getElementById('submit');
+		var ctx = canvas.getContext("2d");
+
+
+		var body = document.querySelector('body');
+		var isDrawing = false;	//Flag Ve them box
+		var reDrawing = false;	// Flag Chinh sua box
+		var iBox = -1; //Box da chon hien tai
+		var curBox = -1; // Box ngay vi tri chuot hien tai
+
+		var startPoint = {};
+		var endPoint = {};
+		var editPoint = { index: -1, point: 0 }; //index: Vi tri bounding box, point: 1 la goc tren ben trai, 3 la goc duoi ben phai
+
+		var rectangles = []; //Box trong 1 image
+		var all_polygons = {{ all_polygons | tojson}}; //Box cua tat ca image
+
+
+		// Lấy phần tử khung scrollview
+		var scrollview = document.getElementById('scrollview');
+
+		var contentElement = document.getElementById('content');
+
+		draw_image(index, all_polygons);
+
+		// Điền dữ liệu vào khung
+
+		rectangles.forEach(function (row) {
+			var li = document.createElement('li');
+			li.textContent = row.text//JSON.stringify(row);//row.x1;
+			contentElement.appendChild(li);
+		});
+		var liElements = document.querySelectorAll('#content li');
+
+
+		body.addEventListener("contextmenu", function (event) {
+			// Thực hiện các hành động tương ứng với sự kiện nhấn chuột phải ở đây
+			var targetElement = event.target;
+			if (targetElement.tagName.toLowerCase() === 'li') {
+				event.preventDefault(); // Ngăn chặn hiển thị menu chuột phải mặc định
+				iBox = Array.from(liElements).indexOf(targetElement);
+				var userInput = prompt("Nhập thông tin:", liElements[iBox].textContent);
+				if (userInput) {
+					liElements[iBox].textContent = userInput;
+					rectangles[iBox].text = userInput;
+				}
+			}
+			else if (targetElement == canvas) {
+				event.preventDefault(); // Ngăn chặn hiển thị menu chuột phải mặc định
+			}
+
+		});
+
+		nextImage.addEventListener('click', function (e) {
+			index = (index + 1) % image_dir.length;
+
+			ctx.clearRect(0, 0, canvas.width, canvas.height);
+			if (addDraw == true) {
+				all_polygons.push(rectangles);
+				addDraw = false;
+			}
+			rectangles = [];
+			draw_image(index, all_polygons);
+			canvas.style.backgroundImage = 'url(' + image_dir[index] + ')';
+
+			contentElement.textContent = '';
+			rectangles.forEach(function (row) {
+				var li = document.createElement('li');
+				li.textContent = row.text//JSON.stringify(row);//row.x1;
+				contentElement.appendChild(li);
+			});
+			liElements = document.querySelectorAll('#content li');
+		});
+
+		prevImage.addEventListener('click', function (e) {
+			index = (index - 1 + image_dir.length) % image_dir.length;
+
+			ctx.clearRect(0, 0, canvas.width, canvas.height);
+			if (addDraw == true) {
+				all_polygons.push(rectangles);
+				addDraw = false;
+			}
+			rectangles = [];
+			draw_image(index, all_polygons);
+			canvas.style.backgroundImage = 'url(' + image_dir[index] + ')';
+
+			contentElement.textContent = '';
+			rectangles.forEach(function (row) {
+				var li = document.createElement('li');
+				li.textContent = row.text//JSON.stringify(row);//row.x1;
+				contentElement.appendChild(li);
+			});
+			liElements = document.querySelectorAll('#content li');
+		});
+
+		canvas.addEventListener("mousedown", function (e) {
+			if (e.button == 0) { //Nhan chuot trai
+				if (curBox != -1) {
+					if (iBox != -1) {
+						liElements[iBox].style.backgroundColor = '#f5f5f5';
+					}
+					iBox = curBox;
+					rect = rectangles[iBox];
+					ctx.clearRect(0, 0, canvas.width, canvas.height);
+					drawRectangles();
+					ctx.beginPath();
+					ctx.fillStyle = 'rgba(0, 128, 255, 0.5)';//'rgba(255, 0, 0, 0.5)';
+					ctx.fillRect(rect.x1, rect.y1, rect.x2 - rect.x1, rect.y2 - rect.y1);
+					liElements[iBox].style.backgroundColor = 'rgba(255, 0, 0, 0.5)';
+				}
+				else {
+					if (curBox == -1 && iBox != -1) {
+						liElements[iBox].style.backgroundColor = '#f5f5f5';
+						iBox = -1;
+					}
+					if (editPoint.index != -1) {
+						isDrawing = false;
+						reDrawing = true;
+						iBox = -1;
+						curBox = -1;
+					}
+					else {
+						isDrawing = true;
+						reDrawing = false;
+						startPoint.x = e.offsetX;
+						startPoint.y = e.offsetY;
+						iBox = -1;
+						curBox = -1;
+					}
+				}
+			}
+
+
+		});
+
+		canvas.addEventListener("mousemove", function (e) {
+			if (isDrawing) {
+				endPoint.x = e.offsetX;
+				endPoint.y = e.offsetY;
+				ctx.clearRect(0, 0, canvas.width, canvas.height);
+				drawRectangles();
+				ctx.beginPath();
+				ctx.strokeStyle = "pink";
+				ctx.rect(startPoint.x, startPoint.y, endPoint.x - startPoint.x, endPoint.y - startPoint.y);
+				ctx.stroke();
+				canvas.style.cursor = 'default';
+			}
+			else if (reDrawing) {
+				if (editPoint.point == 1) {
+					rectangles[editPoint.index].x1 = e.offsetX;
+					rectangles[editPoint.index].y1 = e.offsetY;
+					ctx.clearRect(0, 0, canvas.width, canvas.height);
+					drawRectangles();
+					canvas.style.cursor = 'default';
+				}
+				else {
+					rectangles[editPoint.index].x2 = e.offsetX;
+					rectangles[editPoint.index].y2 = e.offsetY;
+					ctx.clearRect(0, 0, canvas.width, canvas.height);
+					drawRectangles();
+					canvas.style.cursor = 'default';
+				}
+			}
+			else {
+
+				for (let i = 0; i < rectangles.length; i++) {
+					let rect = rectangles[i];
+					bl = { 'x': e.offsetX, 'y': e.offsetY }
+					if ((e.offsetX - 1 <= rect.x1 && rect.x1 <= e.offsetX + 1) && (e.offsetY - 1 <= rect.y1 && rect.y1 <= e.offsetY + 1))	//Goc tren ben trai
+					{
+						ctx.clearRect(rect.x1, rect.y1, rect.x2 - rect.x1, rect.y2 - rect.y1); //Delete current rectangle
+						ctx.beginPath();
+						ctx.strokeStyle = "red";
+						ctx.rect(rect.x1, rect.y1, rect.x2 - rect.x1, rect.y2 - rect.y1);
+						ctx.stroke();
+						editPoint.index = i;
+						editPoint.point = 1;
+						canvas.style.cursor = 'pointer';
+						break;
+					}
+					else if ((e.offsetX - 1 <= rect.x2 && rect.x2 <= e.offsetX + 1) && (e.offsetY - 1 <= rect.y2 && rect.y2 <= e.offsetY + 1)) {	//Goc duoi ben phai
+						ctx.clearRect(rect.x1, rect.y1, rect.x2 - rect.x1, rect.y2 - rect.y1); //Delete current rectangle
+						ctx.beginPath();
+						ctx.strokeStyle = "red";
+						ctx.rect(rect.x1, rect.y1, rect.x2 - rect.x1, rect.y2 - rect.y1);
+						ctx.stroke();
+						editPoint.index = i;
+						editPoint.point = 3;
+						canvas.style.cursor = 'pointer';
+						break;
+					}
+					else if ((rect.x1 + 1 < e.offsetX && e.offsetX < rect.x2 - 1) && (rect.y1 + 1 < e.offsetY && e.offsetY < rect.y2 - 1) && iBox != i) {
+						ctx.clearRect(rect.x1, rect.y1, rect.x2 - rect.x1, rect.y2 - rect.y1);
+						//Delete current rectangle
+						ctx.beginPath();
+						//ctx.fillStyle = 'red';
+						ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+						ctx.fillRect(rect.x1, rect.y1, rect.x2 - rect.x1, rect.y2 - rect.y1);
+						curBox = i;
+						// liElements[iBox].style.backgroundColor='rgba(255, 0, 0, 0.5)';
+						canvas.style.cursor = 'default';
+						break;
+					}
+					else {
+						ctx.clearRect(0, 0, canvas.width, canvas.height);
+						drawRectangles();
+						if (iBox != -1) {
+
+							rect = rectangles[iBox];
+							ctx.clearRect(rect.x1, rect.y1, rect.x2 - rect.x1, rect.y2 - rect.y1); //Delete current rectangle
+							ctx.beginPath();
+							ctx.fillStyle = 'rgba(0, 128, 255, 0.5)';//'rgba(255, 0, 0, 0.5)';
+							ctx.fillRect(rect.x1, rect.y1, rect.x2 - rect.x1, rect.y2 - rect.y1);
+						}
+						canvas.style.cursor = 'default';
+						editPoint.index = -1;
+						editPoint.point = 0;
+						curBox = -1;
+
+					}
+				}
+			}
+		});
+		document.addEventListener("keydown", function (event) {
+			if (event.key === 'Delete' || event.keyCode === 46) {
+				if (iBox != -1) {
+					rectangles.splice(iBox, 1);
+					liElements[iBox].parentNode.removeChild(liElements[iBox]);
+					iBox = -1;
+					liElements = document.querySelectorAll('#content li');
+					ctx.clearRect(0, 0, canvas.width, canvas.height);
+					drawRectangles();
+				}
+			}
+		});
+		canvas.addEventListener("mouseup", function (e) {
+			if (iBox == -1 && e.button == 0) {
+				if (reDrawing) {
+					reDrawing = false;
+					editPoint.index = -1;
+					editPoint.point = 0;
+				}
+				else {
+					ctx.clearRect(0, 0, canvas.width, canvas.height);
+					reDrawing = false;
+					editPoint.index = -1;
+					editPoint.point = 0;
+					isDrawing = false;
+					if (index >= all_polygons.length) {
+						addDraw = true;
+					}
+					var userInput = prompt("Nhap thong tin:");
+					if (userInput) {
+						var li = document.createElement('li');
+						li.textContent = userInput//JSON.stringify(row);//row.x1;
+						contentElement.appendChild(li);
+						liElements = document.querySelectorAll('#content li');
+						rectangles.push({
+							'x1': startPoint.x,
+							'y1': startPoint.y,
+							'x2': endPoint.x,
+							'y2': endPoint.y,
+							'text': userInput
+						});
+					}
+					drawRectangles();
+				}
+			}
+			if (e.button == 2 && curBox != -1) { //Nhan chuot phai
+				var userInput = prompt("Nhập thông tin:", liElements[curBox].textContent);
+				if (userInput) {
+					liElements[curBox].textContent = userInput;
+					rectangles[iBox].text = userInput;
+				}
+			}
+		});
+
+		function drawRectangles() {
+			for (var i = 0; i < rectangles.length; i++) {
+				let rect = rectangles[i];
+				ctx.beginPath();
+				ctx.strokeStyle = "blue";
+				ctx.moveTo(rect.x1, rect.y1);
+				ctx.lineTo(rect.x2, rect.y1);
+				ctx.lineTo(rect.x2, rect.y2);
+				ctx.lineTo(rect.x1, rect.y2);
+				ctx.closePath();
+				ctx.stroke();
+			}
+		}
+		function draw_image(index, all_polygons) {
+			if (index < all_polygons.length) {
+				rectangles = all_polygons[index];
+				drawRectangles();
+			}
+		}
+
+
+		var body = document.querySelector('body');
+		body.addEventListener('click', function (event) {
+			var targetElement = event.target;
+			if (targetElement.tagName.toLowerCase() === 'li') {
+				// Tìm vị trí (index) của phần tử li trong danh sách
+				if (iBox != -1) {
+					liElements[iBox].style.backgroundColor = '#f5f5f5';
+					ctx.clearRect(0, 0, canvas.width, canvas.height);
+					drawRectangles();
+				}
+
+				iBox = Array.from(liElements).indexOf(targetElement);
+				liElements[iBox].style.backgroundColor = 'rgba(255, 0, 0, 0.5)';
+				rect = rectangles[iBox]
+				ctx.clearRect(rect.x1, rect.y1, rect.x2 - rect.x1, rect.y2 - rect.y1); //Delete current rectangle
+				ctx.beginPath();
+				//ctx.fillStyle = 'red';
+				ctx.fillStyle = 'rgba(0, 128, 255, 0.5)';
+				ctx.fillRect(rect.x1, rect.y1, rect.x2 - rect.x1, rect.y2 - rect.y1);
+			}
+			else {
+				if (iBox != -1 && targetElement != canvas) {
+					liElements[iBox].style.backgroundColor = '#f5f5f5';
+					iBox = -1;
+					ctx.clearRect(0, 0, canvas.width, canvas.height);
+					drawRectangles();
+				}
+			}
+		});
+
+
+		var zip = new JSZip();
+		var save = document.getElementById('save');
+		save.addEventListener('click', function () {
+			var image = new Image();
+			var ratio_w = 0
+			var ratio_h = 0
+
+
+			all_polygons.forEach(function (rect, index) {
+				image.src = image_dir[index];
+				ratio_w = image.width / width_canvas
+				ratio_h = image.height / height_canvas
+				var content = '';
+				rect.forEach(function (line, index) {
+					content += parseInt(line.x1 * ratio_w) + ' ' + parseInt(line.y1 * ratio_h) + ' ' + parseInt(line.x2 * ratio_w) + ' ' + parseInt(line.y2 * ratio_h) + ' ' + line.text + '\n';
+				});
+				var fileName = image_dir[index].split("/")[2].split(".")[0]
+				zip.file(fileName + '.txt', content);
+			});
+			zip.generateAsync({ type: 'blob' }).then(function (content) {
+				var link = document.createElement('a');
+				link.href = URL.createObjectURL(content);
+				link.download = 'files.zip';
+				link.click();
+			});
+		});
+	</script>
+</body>
+
+</html>

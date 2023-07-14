@@ -1,0 +1,31 @@
+ninja_required_version = 1.3
+cxx = c++
+nvcc = /usr/local/cuda/bin/nvcc
+
+cflags = -pthread -Wno-unused-result -Wsign-compare -DNDEBUG -g -fwrapv -O2 -Wall -g -fstack-protector-strong -Wformat -Werror=format-security -g -fwrapv -O2 -fPIC -DWITH_CUDA -I/mlcv/WorkingSpace/Personals/thuongpt/scene_text_pipeline_bkai/Detecter/dict_guided/adet/layers/csrc -I/usr/local/lib/python3.7/dist-packages/torch/include -I/usr/local/lib/python3.7/dist-packages/torch/include/torch/csrc/api/include -I/usr/local/lib/python3.7/dist-packages/torch/include/TH -I/usr/local/lib/python3.7/dist-packages/torch/include/THC -I/usr/local/cuda/include -I/usr/include/python3.7m -c
+post_cflags = -DTORCH_API_INCLUDE_EXTENSION_H -DTORCH_EXTENSION_NAME=_C -D_GLIBCXX_USE_CXX11_ABI=0 -std=c++14
+cuda_cflags = -DWITH_CUDA -I/mlcv/WorkingSpace/Personals/thuongpt/scene_text_pipeline_bkai/Detecter/dict_guided/adet/layers/csrc -I/usr/local/lib/python3.7/dist-packages/torch/include -I/usr/local/lib/python3.7/dist-packages/torch/include/torch/csrc/api/include -I/usr/local/lib/python3.7/dist-packages/torch/include/TH -I/usr/local/lib/python3.7/dist-packages/torch/include/THC -I/usr/local/cuda/include -I/usr/include/python3.7m -c
+cuda_post_cflags = -D__CUDA_NO_HALF_OPERATORS__ -D__CUDA_NO_HALF_CONVERSIONS__ -D__CUDA_NO_HALF2_OPERATORS__ --expt-relaxed-constexpr --compiler-options ''"'"'-fPIC'"'"'' -DCUDA_HAS_FP16=1 -D__CUDA_NO_HALF_OPERATORS__ -D__CUDA_NO_HALF_CONVERSIONS__ -D__CUDA_NO_HALF2_OPERATORS__ -DTORCH_API_INCLUDE_EXTENSION_H -DTORCH_EXTENSION_NAME=_C -D_GLIBCXX_USE_CXX11_ABI=0 -gencode=arch=compute_52,code=sm_52 -gencode=arch=compute_50,code=sm_50 -gencode=arch=compute_60,code=sm_60 -gencode=arch=compute_70,code=sm_70 -gencode=arch=compute_52,code=compute_52 -gencode=arch=compute_61,code=compute_61 -gencode=arch=compute_35,code=compute_35 -gencode=arch=compute_37,code=sm_37 -gencode=arch=compute_53,code=sm_53 -gencode=arch=compute_35,code=sm_35 -gencode=arch=compute_70,code=compute_70 -gencode=arch=compute_75,code=sm_75 -gencode=arch=compute_75,code=compute_75 -gencode=arch=compute_61,code=sm_61 -std=c++14
+ldflags = 
+
+rule compile
+  command = $cxx -MMD -MF $out.d $cflags -c $in -o $out $post_cflags
+  depfile = $out.d
+  deps = gcc
+
+rule cuda_compile
+  command = $nvcc $cuda_cflags -c $in -o $out $cuda_post_cflags
+
+
+
+build /mlcv/WorkingSpace/Personals/thuongpt/scene_text_pipeline_bkai/Detecter/dict_guided/build/temp.linux-x86_64-cpython-37/mlcv/WorkingSpace/Personals/thuongpt/scene_text_pipeline_bkai/Detecter/dict_guided/adet/layers/csrc/BezierAlign/BezierAlign_cpu.o: compile /mlcv/WorkingSpace/Personals/thuongpt/scene_text_pipeline_bkai/Detecter/dict_guided/adet/layers/csrc/BezierAlign/BezierAlign_cpu.cpp
+build /mlcv/WorkingSpace/Personals/thuongpt/scene_text_pipeline_bkai/Detecter/dict_guided/build/temp.linux-x86_64-cpython-37/mlcv/WorkingSpace/Personals/thuongpt/scene_text_pipeline_bkai/Detecter/dict_guided/adet/layers/csrc/BezierAlign/BezierAlign_cuda.o: cuda_compile /mlcv/WorkingSpace/Personals/thuongpt/scene_text_pipeline_bkai/Detecter/dict_guided/adet/layers/csrc/BezierAlign/BezierAlign_cuda.cu
+build /mlcv/WorkingSpace/Personals/thuongpt/scene_text_pipeline_bkai/Detecter/dict_guided/build/temp.linux-x86_64-cpython-37/mlcv/WorkingSpace/Personals/thuongpt/scene_text_pipeline_bkai/Detecter/dict_guided/adet/layers/csrc/DefROIAlign/DefROIAlign_cuda.o: cuda_compile /mlcv/WorkingSpace/Personals/thuongpt/scene_text_pipeline_bkai/Detecter/dict_guided/adet/layers/csrc/DefROIAlign/DefROIAlign_cuda.cu
+build /mlcv/WorkingSpace/Personals/thuongpt/scene_text_pipeline_bkai/Detecter/dict_guided/build/temp.linux-x86_64-cpython-37/mlcv/WorkingSpace/Personals/thuongpt/scene_text_pipeline_bkai/Detecter/dict_guided/adet/layers/csrc/cuda_version.o: cuda_compile /mlcv/WorkingSpace/Personals/thuongpt/scene_text_pipeline_bkai/Detecter/dict_guided/adet/layers/csrc/cuda_version.cu
+build /mlcv/WorkingSpace/Personals/thuongpt/scene_text_pipeline_bkai/Detecter/dict_guided/build/temp.linux-x86_64-cpython-37/mlcv/WorkingSpace/Personals/thuongpt/scene_text_pipeline_bkai/Detecter/dict_guided/adet/layers/csrc/ml_nms/ml_nms.o: cuda_compile /mlcv/WorkingSpace/Personals/thuongpt/scene_text_pipeline_bkai/Detecter/dict_guided/adet/layers/csrc/ml_nms/ml_nms.cu
+build /mlcv/WorkingSpace/Personals/thuongpt/scene_text_pipeline_bkai/Detecter/dict_guided/build/temp.linux-x86_64-cpython-37/mlcv/WorkingSpace/Personals/thuongpt/scene_text_pipeline_bkai/Detecter/dict_guided/adet/layers/csrc/vision.o: compile /mlcv/WorkingSpace/Personals/thuongpt/scene_text_pipeline_bkai/Detecter/dict_guided/adet/layers/csrc/vision.cpp
+
+
+
+
+
